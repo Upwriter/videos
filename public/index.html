@@ -149,6 +149,12 @@
         <p class="text-xs text-zinc-500">Continuidade: cada cena começa no último quadro da cena anterior (image-to-video). A 1ª cena usa a imagem de referência quando houver.</p>
       </section>
 
+      <label class="flex items-start gap-3 p-4 rounded-2xl border border-zinc-800 bg-zinc-900 cursor-pointer has-[:checked]:border-sky-500 has-[:checked]:bg-sky-500/10">
+        <input id="promptsOnly" type="checkbox" class="mt-1 accent-sky-500 w-4 h-4" />
+        <span class="text-sm"><b>Apenas gerar prompts</b><br>
+          <span class="text-xs text-zinc-400">Faz a análise e escreve os prompts de todas as cenas, mas para aí: nada é enviado ao fal.ai e não há custo de vídeo. Você copia ou baixa os prompts (TXT, CSV, JSON).</span></span>
+      </label>
+
       <button id="planBtn" type="submit" class="w-full py-3 rounded-xl bg-violet-600 hover:bg-violet-500 disabled:opacity-50 font-medium">Analisar roteiro e calcular orçamento</button>
       <p id="formError" class="hidden text-sm text-red-400"></p>
     </form>
@@ -170,11 +176,36 @@
           <button id="saveScenes" class="px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-sm">Salvar alterações nos prompts</button>
         </div>
       </details>
-      <label class="flex items-center gap-2 text-sm">
-        <input id="confirmBudget" type="checkbox" class="accent-violet-500 w-4 h-4" />
-        <span>Confirmo o orçamento estimado de <b id="bConfirmTotal">–</b></span>
+      <div id="generateArea" class="space-y-4">
+        <label class="flex items-center gap-2 text-sm">
+          <input id="confirmBudget" type="checkbox" class="accent-violet-500 w-4 h-4" />
+          <span>Confirmo o orçamento estimado de <b id="bConfirmTotal">–</b></span>
+        </label>
+        <button id="startBtn" disabled class="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed font-semibold tracking-wide">GERAR VÍDEO COMPLETO</button>
+      </div>
+      <div id="promptsOnlyNote" class="hidden flex items-center justify-between gap-3 flex-wrap rounded-xl bg-sky-500/10 border border-sky-500/30 p-3 text-sm">
+        <span>Modo <b>apenas prompts</b>: nada foi enviado ao fal.ai. Os valores acima são só referência de quanto custaria gerar.</span>
+        <button id="switchToVideo" class="px-3 py-1.5 rounded-lg border border-zinc-600 hover:bg-zinc-800 text-sm whitespace-nowrap">Quero gerar os vídeos destes prompts</button>
+      </div>
+    </section>
+
+    <!-- Prompts -->
+    <section id="promptsPanel" class="hidden bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-4">
+      <div class="flex items-center justify-between gap-3 flex-wrap">
+        <h2 class="font-medium">Prompts gerados <span id="promptsCount" class="text-xs text-zinc-400"></span></h2>
+        <div class="flex gap-2 flex-wrap">
+          <button id="copyAll" class="px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-sm font-medium">Copiar todos</button>
+          <button id="dlTxt" class="px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-sm">Baixar .txt</button>
+          <button id="dlCsv" class="px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-sm">Baixar .csv</button>
+          <button id="dlJson" class="px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-sm">Baixar .json</button>
+        </div>
+      </div>
+      <label class="flex items-center gap-2 text-xs text-zinc-400">
+        <input id="withStyle" type="checkbox" checked class="accent-sky-500" />
+        Incluir estilo visual e referência no prompt (exatamente o texto que iria para o fal.ai)
       </label>
-      <button id="startBtn" disabled class="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed font-semibold tracking-wide">GERAR VÍDEO COMPLETO</button>
+      <p id="promptsSaved" class="hidden text-xs text-emerald-300"></p>
+      <div id="promptsList" class="max-h-[40rem] overflow-y-auto divide-y divide-zinc-800 rounded-xl border border-zinc-800"></div>
     </section>
 
     <!-- Progresso -->
@@ -189,7 +220,7 @@
         </div>
       </div>
       <p id="keepOpen" class="hidden text-xs text-amber-300">Mantenha esta aba aberta enquanto gera. Se fechar, é só voltar e clicar em Continuar.</p>
-      <div>
+      <div id="progressWrap">
         <div class="h-3 rounded-full bg-zinc-800 overflow-hidden"><div id="bar" class="h-full bg-gradient-to-r from-violet-600 to-emerald-500 transition-all" style="width:0%"></div></div>
         <div class="mt-2 flex justify-between text-xs text-zinc-400 flex-wrap gap-2">
           <span id="progressText">0 / 0 cenas</span>

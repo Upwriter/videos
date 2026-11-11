@@ -46,6 +46,11 @@ Abra http://localhost:3333 no Chrome ou Edge.
    só libera após confirmar.
 6. **Geração** — sequencial, 3 tentativas automáticas por cena, Pausar / Continuar / Cancelar.
 
+**Apenas gerar prompts:** marque a opção antes de analisar. O app faz a mesma divisão e escreve os mesmos
+prompts, mas para aí — nada é enviado ao fal.ai. Os prompts aparecem na tela (copiar um a um ou todos) e
+podem ser baixados em TXT, CSV (abre no Excel) e JSON; se houver pasta escolhida, também são salvos nela.
+A pasta é opcional nesse modo. Depois, *Quero gerar os vídeos destes prompts* reaproveita o projeto.
+
 **Continuidade:** cada cena (a partir da 2ª) começa no último quadro da anterior (extraído no navegador).
 A 1ª usa a imagem de referência (exceto no modo *Referência visual geral*). Nos modos Personagem/Produto/
 Cenário a descrição da referência também entra em todos os prompts.
@@ -59,7 +64,7 @@ public/index.html                      interface
 public/js/app.js                       UI
 public/js/project.js                   planejamento + persistência
 public/js/runner.js                    geração sequencial, retomada
-public/js/splitter.js | styles.js | media.js | storage.js | api.js
+public/js/splitter.js | styles.js | media.js | storage.js | api.js | exports.js
 dev-server.js                          servidor só para uso local
 ```
 

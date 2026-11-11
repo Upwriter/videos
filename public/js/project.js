@@ -49,6 +49,7 @@ export async function plan(p, { cfg, log, signal }) {
     resolution: cfg.resolution,
     costPerSecond: cfg.costPerSecond,
     folderName: p.folderName || null,
+    promptsOnly: !!p.promptsOnly,
   };
   const s = {
     version: 2,
