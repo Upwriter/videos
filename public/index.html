@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Flow Video Creator AI</title>
+  <script src="https://cdn.tailwindcss.com/3.4.16"></script>
+  <style>
+    textarea, input, select { color-scheme: dark; }
+    .scene-row[data-status="done"] .dot { background: #22c55e; }
+    .scene-row[data-status="error"] .dot { background: #ef4444; }
+    .scene-row[data-status="generating"] .dot,
+    .scene-row[data-status="submitted"] .dot,
+    .scene-row[data-status="downloading"] .dot { background: #f59e0b; animation: pulse 1s infinite; }
+    @keyframes pulse { 50% { opacity: .3 } }
+  </style>
+</head>
+<body class="bg-zinc-950 text-zinc-100 min-h-screen">
+  <div class="max-w-5xl mx-auto px-4 py-8 space-y-6">
+    <header class="flex items-center justify-between gap-4 flex-wrap">
+      <div>
+        <h1 class="text-2xl font-semibold tracking-tight">Flow Video Creator <span class="text-violet-400">AI</span></h1>
+        <p class="text-sm text-zinc-400">Roteiros longos → cenas de <span id="sceneSec">10</span>s no MiniMax H3 Max Turbo (fal.ai), salvas na sua pasta.</p>
+      </div>
+      <div id="keys" class="text-xs flex gap-2"></div>
+    </header>
+
+    <!-- Retomada -->
+    <div id="resumeBanner" class="hidden rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4 flex items-center justify-between gap-4 flex-wrap">
+      <div class="text-sm"><b>Projeto salvo encontrado.</b> <span id="resumeInfo"></span></div>
+      <div class="flex gap-2">
+        <button id="resumeView" class="px-3 py-1.5 rounded-lg bg-amber-500 text-black text-sm font-medium">Ver progresso / retomar</button>
+        <button id="resumeDismiss" class="px-3 py-1.5 rounded-lg border border-zinc-700 text-sm">Novo projeto</button>
+      </div>
+    </div>
+
+    <form id="form" class="space-y-6">
+      <!-- 1. Pasta -->
+      <section class="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-3">
+        <h2 class="font-medium"><span class="text-violet-400">1.</span> Pasta de destino local</h2>
+        <div class="flex gap-2">
+          <input id="outputDir" required placeholder="C:/MeusProjetos/VideosGerados/" class="flex-1 min-w-0 bg-zinc-950 border border-zinc-700 rounded-lg px-3 py-2 text-sm" />
+          <button type="button" id="pickFolder" class="px-3 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-sm whitespace-nowrap">Escolher…</button>
+          <button type="button" id="loadFolder" class="px-3 py-2 rounded-lg border border-zinc-700 hover:bg-zinc-800 text-sm whitespace-nowrap" title="Abrir project_state.json desta pasta">Abrir projeto</button>
+        </div>
+        <p class="text-xs text-zinc-500">Os clipes serão salvos como 01_cena.mp4, 02_cena.mp4… junto com o project_state.json.</p>
+      </section>
+
+      <!-- Modo -->
+      <section class="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-3">
+        <h2 class="font-medium">Modo de geração</h2>
+        <div class="grid sm:grid-cols-2 gap-3">
+          <label class="flex gap-3 items-start p-3 rounded-xl border border-zinc-700 cursor-pointer has-[:checked]:border-violet-500 has-[:checked]:bg-violet-500/10">
+            <input type="radio" name="generationMode" value="roteiro" checked class="mt-1 accent-violet-500" />
+            <span><b class="text-sm">Roteiro (+ imagem opcional)</b><br><span class="text-xs text-zinc-400">Cola o roteiro; a IA divide em cenas de 10s.</span></span>
+          </label>
+          <label class="flex gap-3 items-start p-3 rounded-xl border border-zinc-700 cursor-pointer has-[:checked]:border-violet-500 has-[:checked]:bg-violet-500/10">
+            <input type="radio" name="generationMode" value="imagem" class="mt-1 accent-violet-500" />
+            <span><b class="text-sm">Apenas imagem</b><br><span class="text-xs text-zinc-400">Envie a foto (produto/influenciadora) e a IA cria o roteiro visual.</span></span>
+          </label>
+        </div>
+      </section>
+
+      <!-- 2. Imagem -->
+      <section class="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-3">
+        <h2 class="font-medium"><span class="text-violet-400">2.</span> Imagem de referência <span id="imgOptional" class="text-xs text-zinc-500">(opcional)</span></h2>
+        <div id="drop" class="border-2 border-dashed border-zinc-700 rounded-xl p-6 text-center text-sm text-zinc-400 cursor-pointer hover:border-violet-500 transition">
+          <div id="dropEmpty">Arraste uma imagem aqui ou <u>clique para enviar</u><br><span class="text-xs">JPG, JPEG, PNG ou WEBP</span></div>
+          <div id="dropPreview" class="hidden flex flex-col items-center gap-3">
+            <img id="previewImg" class="max-h-56 rounded-lg" alt="Prévia" />
+            <div class="flex gap-2">
+              <button type="button" id="replaceImg" class="px-3 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-xs">Trocar</button>
+              <button type="button" id="removeImg" class="px-3 py-1 rounded-lg bg-red-600/80 hover:bg-red-600 text-xs">Remover</button>
+            </div>
+            <span id="imgInfo" class="text-xs text-zinc-500"></span>
+          </div>
+        </div>
+        <input type="file" id="file" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" class="hidden" />
+        <label class="block text-sm">Modo de uso da imagem
+          <select id="refMode" class="mt-1 w-full bg-zinc-950 border border-zinc-700 rounded-lg px-3 py-2 text-sm">
+            <option value="personagem">Personagem de referência</option>
+            <option value="produto">Produto de referência</option>
+            <option value="cenario">Cenário de referência</option>
+            <option value="inicial">Imagem inicial do vídeo</option>
+            <option value="geral" selected>Referência visual geral</option>
+          </select>
+        </label>
+      </section>
+
+      <!-- 3. Roteiro -->
+      <section id="scriptSection" class="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-3">
+        <h2 class="font-medium"><span class="text-violet-400">3.</span> Roteiro completo</h2>
+        <textarea id="script" rows="12" placeholder="Cole aqui o roteiro (de 5 minutos a mais de 1 hora)…" class="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-3 py-2 text-sm leading-relaxed"></textarea>
+        <p id="scriptStats" class="text-xs text-zinc-400">0 palavras</p>
+      </section>
+
+      <!-- 4. Config -->
+      <section class="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-4">
+        <h2 class="font-medium"><span class="text-violet-400">4.</span> Configurações de vídeo</h2>
+        <div class="grid sm:grid-cols-2 gap-4">
+          <label class="block text-sm">Duração do vídeo
+            <select id="duration" class="mt-1 w-full bg-zinc-950 border border-zinc-700 rounded-lg px-3 py-2 text-sm">
+              <option value="auto" selected>Automática (pelo tamanho do roteiro)</option>
+              <option value="30">30 segundos</option>
+              <option value="60">1 minuto</option>
+              <option value="120">2 minutos</option>
+              <option value="300">5 minutos</option>
+              <option value="600">10 minutos</option>
+              <option value="1800">30 minutos</option>
+              <option value="3600">1 hora</option>
+              <option value="custom">Personalizada…</option>
+            </select>
+            <input id="customDuration" type="number" min="10" step="10" placeholder="Duração em segundos" class="hidden mt-2 w-full bg-zinc-950 border border-zinc-700 rounded-lg px-3 py-2 text-sm" />
+          </label>
+          <div class="text-sm">Formato
+            <div class="mt-1 flex gap-2">
+              <label class="flex-1 text-center px-3 py-2 rounded-lg border border-zinc-700 cursor-pointer has-[:checked]:border-violet-500 has-[:checked]:bg-violet-500/10">
+                <input type="radio" name="format" value="16:9" checked class="hidden" />Horizontal 16:9
+              </label>
+              <label class="flex-1 text-center px-3 py-2 rounded-lg border border-zinc-700 cursor-pointer has-[:checked]:border-violet-500 has-[:checked]:bg-violet-500/10">
+                <input type="radio" name="format" value="9:16" class="hidden" />Vertical 9:16
+              </label>
+            </div>
+          </div>
+          <label class="block text-sm">Estilo visual
+            <select id="style" class="mt-1 w-full bg-zinc-950 border border-zinc-700 rounded-lg px-3 py-2 text-sm"></select>
+          </label>
+          <label class="flex items-center gap-2 text-sm sm:mt-6">
+            <input id="continuity" type="checkbox" checked class="accent-violet-500 w-4 h-4" />
+            Manter continuidade entre todas as cenas
+          </label>
+        </div>
+        <textarea id="customStyle" rows="3" placeholder="Descreva o estilo (em inglês funciona melhor). Ex.: watercolor illustration, soft pastel palette…" class="hidden w-full bg-zinc-950 border border-zinc-700 rounded-lg px-3 py-2 text-sm"></textarea>
+        <p class="text-xs text-zinc-500">Continuidade: cada cena começa no último quadro da cena anterior (image-to-video). A 1ª cena usa a imagem de referência quando houver.</p>
+      </section>
+
+      <button id="planBtn" type="submit" class="w-full py-3 rounded-xl bg-violet-600 hover:bg-violet-500 disabled:opacity-50 font-medium">Analisar roteiro e calcular orçamento</button>
+      <p id="formError" class="hidden text-sm text-red-400"></p>
+    </form>
+
+    <!-- Orçamento -->
+    <section id="budgetPanel" class="hidden bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-4">
+      <h2 class="font-medium">Orçamento prévio</h2>
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div class="rounded-xl bg-zinc-950 p-3"><div class="text-xs text-zinc-400">Cenas</div><div id="bScenes" class="text-xl font-semibold">–</div></div>
+        <div class="rounded-xl bg-zinc-950 p-3"><div class="text-xs text-zinc-400">Duração total</div><div id="bDuration" class="text-xl font-semibold">–</div></div>
+        <div class="rounded-xl bg-zinc-950 p-3"><div class="text-xs text-zinc-400">Custo por cena</div><div id="bUnit" class="text-xl font-semibold">–</div></div>
+        <div class="rounded-xl bg-violet-500/15 p-3"><div class="text-xs text-violet-300">Custo total estimado</div><div id="bTotal" class="text-xl font-semibold">–</div></div>
+      </div>
+      <p id="bNote" class="text-xs text-zinc-500"></p>
+      <details class="rounded-xl border border-zinc-800">
+        <summary class="cursor-pointer px-4 py-2 text-sm text-zinc-300">Ver / editar cenas planejadas</summary>
+        <div id="sceneEditor" class="max-h-[32rem] overflow-y-auto divide-y divide-zinc-800"></div>
+        <div class="p-3 border-t border-zinc-800 flex justify-end">
+          <button id="saveScenes" class="px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-sm">Salvar alterações nos prompts</button>
+        </div>
+      </details>
+      <label class="flex items-center gap-2 text-sm">
+        <input id="confirmBudget" type="checkbox" class="accent-violet-500 w-4 h-4" />
+        <span>Confirmo o orçamento estimado de <b id="bConfirmTotal">–</b></span>
+      </label>
+      <button id="startBtn" disabled class="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed font-semibold tracking-wide">GERAR VÍDEO COMPLETO</button>
+    </section>
+
+    <!-- Progresso -->
+    <section id="progressPanel" class="hidden bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-4">
+      <div class="flex items-center justify-between gap-3 flex-wrap">
+        <h2 class="font-medium">Progresso <span id="statusBadge" class="ml-2 text-xs px-2 py-0.5 rounded-full bg-zinc-800"></span></h2>
+        <div class="flex gap-2 flex-wrap">
+          <button id="pauseBtn" class="px-3 py-1.5 rounded-lg bg-amber-500 text-black text-sm font-medium">Pausar</button>
+          <button id="resumeBtn" class="px-3 py-1.5 rounded-lg bg-emerald-600 text-sm font-medium">Continuar</button>
+          <button id="cancelBtn" class="px-3 py-1.5 rounded-lg bg-red-600 text-sm font-medium">Cancelar</button>
+          <button id="retryBtn" class="hidden px-3 py-1.5 rounded-lg border border-zinc-600 text-sm">Tentar novamente cenas com erro</button>
+          <button id="openFolderBtn" class="px-3 py-1.5 rounded-lg border border-zinc-700 text-sm">Abrir pasta</button>
+        </div>
+      </div>
+      <div>
+        <div class="h-3 rounded-full bg-zinc-800 overflow-hidden"><div id="bar" class="h-full bg-gradient-to-r from-violet-600 to-emerald-500 transition-all" style="width:0%"></div></div>
+        <div class="mt-2 flex justify-between text-xs text-zinc-400 flex-wrap gap-2">
+          <span id="progressText">0 / 0 cenas</span>
+          <span id="currentText"></span>
+          <span id="spentText"></span>
+        </div>
+      </div>
+      <div id="sceneList" class="grid grid-cols-1 sm:grid-cols-2 gap-1 max-h-80 overflow-y-auto text-xs"></div>
+      <pre id="log" class="bg-zinc-950 rounded-xl p-3 text-xs text-zinc-400 h-48 overflow-y-auto whitespace-pre-wrap"></pre>
+    </section>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

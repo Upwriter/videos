@@ -1,0 +1,51 @@
+// Estilos visuais e o modificador injetado no final do prompt de cada cena.
+const STYLES = {
+  webcomic: {
+    label: 'Webcomic / Stick Figure',
+    modifier:
+      'A 2D minimalist stick figure character with a white head and black stroke outlines, expressive cartoon eyes, composited inside a detailed digital illustration environment, cinematic moody lighting, clean dark ink outlines, high contrast between the simple character and the richly detailed background, webcomic style, {ASPECT}.',
+  },
+  forense: {
+    label: 'Reconstrução 3D / Forense',
+    modifier:
+      '3D isometric architectural cross-section render, clean minimal matte gray and white environment, smooth clay-like smooth figures with distinct color coding, studio soft lighting, clean geometry, minimalist technical illustration style, high-end 3D animation look.',
+  },
+  realista: {
+    label: 'Realista',
+    modifier: 'Photorealistic footage, natural lighting, realistic textures and skin, true-to-life colors, sharp focus.',
+  },
+  cinematografico: {
+    label: 'Cinematográfico',
+    modifier:
+      'Cinematic film look, anamorphic lens, shallow depth of field, dramatic lighting, rich color grading, smooth camera movement, 35mm film grain.',
+  },
+  ugc: {
+    label: 'UGC',
+    modifier:
+      'User-generated content style, handheld smartphone footage, authentic casual setting, natural daylight, slight camera shake, social media vibe.',
+  },
+  publicitario: {
+    label: 'Publicitário',
+    modifier:
+      'High-end commercial advertising look, polished studio lighting, crisp product focus, clean background, premium color grading, smooth dolly shots.',
+  },
+  lifestyle: {
+    label: 'Lifestyle',
+    modifier:
+      'Lifestyle video, warm golden-hour light, airy bright tones, candid natural moments, aspirational everyday setting, soft focus background.',
+  },
+  documentario: {
+    label: 'Documentário',
+    modifier:
+      'Documentary footage style, observational camera, natural available light, realistic environments, subtle handheld movement, journalistic tone.',
+  },
+  personalizado: { label: 'Personalizado', modifier: '' },
+};
+
+function styleModifier(style, format, custom) {
+  if (style === 'personalizado') return (custom || '').trim();
+  const s = STYLES[style] || STYLES.cinematografico;
+  return s.modifier.replace('{ASPECT}', format || '16:9');
+}
+
+module.exports = { STYLES, styleModifier };
