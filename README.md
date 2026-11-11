@@ -1,4 +1,4 @@
-# Flow Video Creator AI (versão local)
+# Meus vídeos (versão local)
 
 Transforma roteiros longos (5 min a 1 h+) em dezenas/centenas de clipes de 10 s gerados pelo
 **MiniMax H3 Max Turbo** no fal.ai (480P, sem áudio) e salva cada clipe na sua pasta:

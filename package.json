@@ -1,5 +1,5 @@
 {
-  "name": "flow-video-creator-ai",
+  "name": "meus-videos",
   "version": "1.0.0",
   "private": true,
   "description": "Gera dezenas/centenas de cenas de vídeo a partir de roteiros longos usando MiniMax H3 Max Turbo (fal.ai), salvando os clipes localmente.",

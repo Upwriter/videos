@@ -156,7 +156,7 @@ if (last) {
 }
 
 app.listen(config.port, '127.0.0.1', () => {
-  console.log(`\n  Flow Video Creator AI rodando em http://localhost:${config.port}\n`);
+  console.log(`\n  Meus vídeos rodando em http://localhost:${config.port}\n`);
   if (!config.falKey) console.warn('  ⚠ FAL_KEY ausente no .env');
   if (!config.openaiKey) console.warn('  ⚠ OPENAI_API_KEY ausente no .env');
 });
