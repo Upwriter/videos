@@ -1,61 +1,68 @@
-# Meus vídeos (versão local)
+# Meus vídeos
 
 Transforma roteiros longos (5 min a 1 h+) em dezenas/centenas de clipes de 10 s gerados pelo
-**MiniMax H3 Max Turbo** no fal.ai (480P, sem áudio) e salva cada clipe na sua pasta:
-`01_cena.mp4`, `02_cena.mp4`, … Não monta o vídeo final e não usa banco de dados — o progresso fica em
-`project_state.json` dentro da pasta de destino.
+**MiniMax H3 Max Turbo** no fal.ai (480P, sem áudio) e grava cada clipe numa pasta do seu computador:
+`01_cena.mp4`, `02_cena.mp4`, … Não monta o vídeo final e não usa banco de dados.
 
-## Como rodar
+## Como funciona (Vercel)
 
-Requisitos: Node.js 18.17+ (testado no 24).
+- **Navegador** — divide o roteiro, comanda a geração cena a cena, baixa cada MP4 direto do CDN do fal.ai
+  e grava na pasta escolhida (File System Access API — **Chrome ou Edge no computador**). O progresso fica
+  no navegador (IndexedDB) e em `project_state.json` dentro da pasta.
+- **Servidor (funções em `/api`)** — só guarda as chaves e repassa as chamadas: `api/ai.js` (OpenAI),
+  `api/fal.js` (fila do fal.ai), `api/config.js`. Tudo protegido pela senha `APP_PASSWORD`.
+
+> A aba precisa ficar aberta durante a geração. Se fechar, é só abrir de novo e clicar em **Continuar**:
+> cenas prontas não são refeitas e um job já enviado ao fal.ai é reconsultado (não é pago de novo).
+> Em outro navegador/PC, use **Abrir projeto de uma pasta** apontando para a pasta com o `project_state.json`.
+
+## Deploy na Vercel
+
+1. Importe o repositório `Upwriter/videos` na Vercel (Framework Preset: **Other**; sem build command).
+2. Em *Settings → Environment Variables*, cadastre no mínimo `APP_PASSWORD`, `FAL_KEY` e `OPENAI_API_KEY`
+   (veja `.env.example` para as opcionais).
+3. Faça o deploy e acesse a URL. A senha é pedida uma vez por navegador.
+
+`vercel.json` já define `public/` como saída estática e 60 s de limite para as funções.
+
+## Rodar localmente
 
 ```bash
 npm install
-copy .env.example .env      # depois preencha FAL_KEY e OPENAI_API_KEY
+copy .env.example .env      # preencha FAL_KEY e OPENAI_API_KEY (APP_PASSWORD é opcional localmente)
 npm start
 ```
 
-Abra http://localhost:3333.
+Abra http://localhost:3333 no Chrome ou Edge.
 
 ## Fluxo
 
-1. **Pasta de destino** — digite o caminho ou clique em *Escolher…* (abre o seletor de pastas do Windows).
+1. **Pasta de destino** — *Escolher pasta…* (o navegador pede permissão para editar).
 2. **Imagem de referência** (opcional; obrigatória no modo *Apenas imagem*) com o modo de uso.
-3. **Roteiro** — dividido de forma determinística em blocos de ~10 s (`WORDS_PER_MINUTE`=140 → ~23 palavras
-   por cena; ~1.450 palavras ≈ 62 cenas). A IA de texto escreve o prompt visual de cada bloco.
+3. **Roteiro** — divisão determinística em blocos de ~10 s (140 palavras/min → ~23 palavras por cena;
+   ~1.450 palavras ≈ 62 cenas). A IA escreve o prompt visual de cada bloco.
 4. **Configurações** — duração (automática ou fixa), 16:9 / 9:16, estilo e continuidade.
-5. **Orçamento** — cenas, duração, custo por cena e total. Os prompts podem ser revisados/editados.
-   O botão **GERAR VÍDEO COMPLETO** só libera após marcar a confirmação.
-6. **Geração** — sequencial, com 3 tentativas automáticas por cena, barra de progresso e Pausar / Continuar /
-   Cancelar. Pausar termina a cena atual e para.
+5. **Orçamento** — cenas, duração, custo por cena e total; prompts editáveis. **GERAR VÍDEO COMPLETO**
+   só libera após confirmar.
+6. **Geração** — sequencial, 3 tentativas automáticas por cena, Pausar / Continuar / Cancelar.
 
-### Continuidade
-Com a opção ligada, cada cena (a partir da 2ª) usa o **último quadro da cena anterior** como `image_url`
-(endpoint image-to-video). A 1ª cena usa a imagem de referência (exceto no modo *Referência visual geral*).
-Nos modos Personagem/Produto/Cenário, a descrição da referência também é injetada em todos os prompts.
-O quadro é extraído com o ffmpeg embutido (`ffmpeg-static`) e fica em `_frames/`.
-
-### Retomada
-Se o app for fechado no meio (ex.: cena 15 de 60), ao abrir de novo ele carrega o último projeto e mostra
-um aviso para retomar. Cenas já baixadas não são refeitas; um job já enviado ao fal.ai é reconsultado em vez
-de pago de novo. Também é possível clicar em *Abrir projeto* para carregar o `project_state.json` de qualquer pasta.
+**Continuidade:** cada cena (a partir da 2ª) começa no último quadro da anterior (extraído no navegador).
+A 1ª usa a imagem de referência (exceto no modo *Referência visual geral*). Nos modos Personagem/Produto/
+Cenário a descrição da referência também entra em todos os prompts.
 
 ## Estrutura
 
 ```
-server.js               Express + rotas + SSE (progresso em tempo real)
-src/config.js           variáveis do .env
-src/planner.js          divide roteiro, chama a IA, compõe prompts, calcula orçamento
-src/runner.js           fila sequencial: submit → poll → download → último quadro → salva estado
-src/services/fal.js     fila do fal.ai (queue.fal.run) e download binário
-src/services/llm.js     OpenAI: descrição da referência, bíblia visual, prompts das cenas, modo só-imagem
-src/services/splitter.js divisão determinística do roteiro
-src/services/styles.js  estilos e modificadores injetados
-src/services/media.js   ffmpeg: recorte da referência e último quadro
-public/                 interface (HTML + Tailwind + JS)
+api/config.js  api/ai.js  api/fal.js   funções serverless (proxy com senha)
+api/_lib/                              config, auth, cliente fal.ai e OpenAI
+public/index.html                      interface
+public/js/app.js                       UI
+public/js/project.js                   planejamento + persistência
+public/js/runner.js                    geração sequencial, retomada
+public/js/splitter.js | styles.js | media.js | storage.js | api.js
+dev-server.js                          servidor só para uso local
 ```
 
 ## Custos
-O preço vem de `COST_PER_SECOND` no `.env`. Tabela do fal.ai para o H3 Max Turbo 480P:
-US$ 0,025/s (US$ 0,25 por cena de 10 s) a partir de 16/11/2026; promoção de 1 a 15/11/2026 a US$ 0,0175/s.
-Confira o valor atual em https://fal.ai/models/minimax/h3-max-turbo/text-to-video e ajuste se necessário.
+`COST_PER_SECOND` (padrão US$ 0,025/s = US$ 0,25 por cena de 10 s em 480P, tabela do fal.ai a partir de
+16/11/2026). Confira em https://fal.ai/models/minimax/h3-max-turbo/text-to-video.

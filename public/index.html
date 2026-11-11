@@ -16,14 +16,29 @@
   </style>
 </head>
 <body class="bg-zinc-950 text-zinc-100 min-h-screen">
+  <!-- Senha -->
+  <div id="authModal" class="hidden fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
+    <form id="authForm" class="w-full max-w-sm bg-zinc-900 border border-zinc-800 rounded-2xl p-6 space-y-4">
+      <h2 class="font-semibold text-lg">Meus <span class="text-violet-400">vídeos</span></h2>
+      <p id="authMsg" class="text-sm text-zinc-400">Digite a senha de acesso.</p>
+      <input id="authPassword" type="password" autocomplete="current-password" required class="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-3 py-2 text-sm" placeholder="Senha" />
+      <button class="w-full py-2 rounded-lg bg-violet-600 hover:bg-violet-500 font-medium">Entrar</button>
+    </form>
+  </div>
+
   <div class="max-w-5xl mx-auto px-4 py-8 space-y-6">
     <header class="flex items-center justify-between gap-4 flex-wrap">
       <div>
         <h1 class="text-2xl font-semibold tracking-tight">Meus <span class="text-violet-400">vídeos</span></h1>
         <p class="text-sm text-zinc-400">Roteiros longos → cenas de <span id="sceneSec">10</span>s no MiniMax H3 Max Turbo (fal.ai), salvas na sua pasta.</p>
       </div>
-      <div id="keys" class="text-xs flex gap-2"></div>
+      <div id="keys" class="text-xs flex gap-2 flex-wrap"></div>
     </header>
+
+    <div id="browserWarn" class="hidden rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4 text-sm">
+      Seu navegador não permite gravar direto numa pasta. Os clipes serão baixados para a pasta <b>Downloads</b>, um por um.
+      Para escolher a pasta e retomar com verificação dos arquivos, use <b>Google Chrome</b> ou <b>Microsoft Edge</b> no computador.
+    </div>
 
     <!-- Retomada -->
     <div id="resumeBanner" class="hidden rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4 flex items-center justify-between gap-4 flex-wrap">
@@ -37,13 +52,13 @@
     <form id="form" class="space-y-6">
       <!-- 1. Pasta -->
       <section class="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-3">
-        <h2 class="font-medium"><span class="text-violet-400">1.</span> Pasta de destino local</h2>
-        <div class="flex gap-2">
-          <input id="outputDir" required placeholder="C:/MeusProjetos/VideosGerados/" class="flex-1 min-w-0 bg-zinc-950 border border-zinc-700 rounded-lg px-3 py-2 text-sm" />
-          <button type="button" id="pickFolder" class="px-3 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-sm whitespace-nowrap">Escolher…</button>
-          <button type="button" id="loadFolder" class="px-3 py-2 rounded-lg border border-zinc-700 hover:bg-zinc-800 text-sm whitespace-nowrap" title="Abrir project_state.json desta pasta">Abrir projeto</button>
+        <h2 class="font-medium"><span class="text-violet-400">1.</span> Pasta de destino no seu computador</h2>
+        <div class="flex gap-2 flex-wrap items-center">
+          <button type="button" id="pickFolder" class="px-4 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-sm">Escolher pasta…</button>
+          <button type="button" id="importFolder" class="px-4 py-2 rounded-lg border border-zinc-700 hover:bg-zinc-800 text-sm" title="Carregar o project_state.json de uma pasta">Abrir projeto de uma pasta</button>
+          <span id="folderName" class="text-sm text-zinc-300"></span>
         </div>
-        <p class="text-xs text-zinc-500">Os clipes serão salvos como 01_cena.mp4, 02_cena.mp4… junto com o project_state.json.</p>
+        <p class="text-xs text-zinc-500">Os clipes são salvos como 01_cena.mp4, 02_cena.mp4… junto com o project_state.json. O navegador vai pedir permissão para editar a pasta.</p>
       </section>
 
       <!-- Modo -->
@@ -171,9 +186,9 @@
           <button id="resumeBtn" class="px-3 py-1.5 rounded-lg bg-emerald-600 text-sm font-medium">Continuar</button>
           <button id="cancelBtn" class="px-3 py-1.5 rounded-lg bg-red-600 text-sm font-medium">Cancelar</button>
           <button id="retryBtn" class="hidden px-3 py-1.5 rounded-lg border border-zinc-600 text-sm">Tentar novamente cenas com erro</button>
-          <button id="openFolderBtn" class="px-3 py-1.5 rounded-lg border border-zinc-700 text-sm">Abrir pasta</button>
         </div>
       </div>
+      <p id="keepOpen" class="hidden text-xs text-amber-300">Mantenha esta aba aberta enquanto gera. Se fechar, é só voltar e clicar em Continuar.</p>
       <div>
         <div class="h-3 rounded-full bg-zinc-800 overflow-hidden"><div id="bar" class="h-full bg-gradient-to-r from-violet-600 to-emerald-500 transition-all" style="width:0%"></div></div>
         <div class="mt-2 flex justify-between text-xs text-zinc-400 flex-wrap gap-2">
@@ -187,6 +202,6 @@
     </section>
   </div>
 
-  <script src="app.js"></script>
+  <script type="module" src="js/app.js"></script>
 </body>
 </html>
