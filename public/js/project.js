@@ -9,21 +9,67 @@ const BATCH = 8;
 export const STATE_FILE = 'project_state.json';
 const REF_FILE = '_referencia/referencia.jpg';
 
-export function budget(s) {
-  const costPerScene = +(s.settings.sceneSeconds * s.settings.costPerSecond).toFixed(4);
-  const pending = s.scenes.filter((x) => x.status !== 'done').length;
+const REF_I2I = ['personagem', 'produto', 'cenario'];
+
+/** Cenas-imagem usam imagem→imagem (FLUX Kontext) quando há referência de personagem/produto/cenário. */
+export const imageUsesReference = (s) => !!s.reference && REF_I2I.includes(s.settings.refMode);
+
+/**
+ * Quais cenas são vídeo: 'video' = todas, 'image' = nenhuma, 'mixed' = pct% distribuídas
+ * de forma uniforme (a cena 1 é sempre vídeo, para abrir com movimento).
+ */
+export function assignMedia(n, mode, pct = 10) {
+  if (mode === 'image') return Array(n).fill('image');
+  if (mode !== 'mixed') return Array(n).fill('video');
+  const v = Math.min(n, Math.max(1, Math.round((n * pct) / 100)));
+  const media = Array(n).fill('image');
+  for (let j = 0; j < v; j++) media[Math.floor((j * n) / v)] = 'video';
+  return media;
+}
+
+export function costs(s) {
+  const st = s.settings;
   return {
-    scenes: s.scenes.length,
-    seconds: s.scenes.length * s.settings.sceneSeconds,
-    costPerSecond: s.settings.costPerSecond,
-    costPerScene,
-    total: +(s.scenes.length * costPerScene).toFixed(2),
-    pendingScenes: pending,
-    pendingCost: +(pending * costPerScene).toFixed(2),
+    video: +(st.sceneSeconds * st.costPerSecond).toFixed(4),
+    image: imageUsesReference(s) ? st.imageI2ICost ?? 0.04 : st.imageT2ICost ?? 0.05,
   };
 }
 
-const fileName = (i, total) => `${String(i).padStart(Math.max(2, String(total).length), '0')}_cena.mp4`;
+export const sceneCost = (s, sc, c = costs(s)) => (sc.media === 'image' ? c.image : c.video);
+
+export function budget(s) {
+  const c = costs(s);
+  const sum = (list) => +list.reduce((a, sc) => a + sceneCost(s, sc, c), 0).toFixed(2);
+  const pending = s.scenes.filter((x) => x.status !== 'done');
+  const videos = s.scenes.filter((x) => x.media !== 'image').length;
+  return {
+    scenes: s.scenes.length,
+    seconds: s.scenes.length * s.settings.sceneSeconds,
+    videos,
+    images: s.scenes.length - videos,
+    costPerSecond: s.settings.costPerSecond,
+    videoCost: c.video,
+    imageCost: c.image,
+    costPerScene: c.video, // compatibilidade
+    total: sum(s.scenes),
+    allVideoTotal: +(s.scenes.length * c.video).toFixed(2),
+    spent: sum(s.scenes.filter((x) => x.status === 'done')),
+    pendingScenes: pending.length,
+    pendingCost: sum(pending),
+  };
+}
+
+export const fileName = (i, total, media = 'video') =>
+  `${String(i).padStart(Math.max(2, String(total).length), '0')}_cena.${media === 'image' ? 'jpg' : 'mp4'}`;
+
+/** Troca vídeo↔imagem de uma cena ainda não gerada. */
+export function setSceneMedia(s, sc, media) {
+  if (sc.status === 'done' || sc.media === media) return;
+  sc.media = media;
+  sc.file = fileName(sc.i, s.scenes.length, media);
+  Object.assign(sc, { requestId: null, statusUrl: null, responseUrl: null, videoUrl: null, error: null });
+  if (sc.status === 'error') sc.status = 'pending';
+}
 
 const ai = (body, signal, log) => withRetry(() => api('/api/ai', body, { signal }), {
   signal,
@@ -50,6 +96,10 @@ export async function plan(p, { cfg, log, signal }) {
     costPerSecond: cfg.costPerSecond,
     folderName: p.folderName || null,
     promptsOnly: !!p.promptsOnly,
+    mediaMode: ['video', 'mixed', 'image'].includes(p.mediaMode) ? p.mediaMode : 'video',
+    videoPercent: Math.min(100, Math.max(1, Number(p.videoPercent) || 10)),
+    imageT2ICost: cfg.imageT2ICost ?? 0.05,
+    imageI2ICost: cfg.imageI2ICost ?? 0.04,
   };
   const s = {
     version: 2,
@@ -76,9 +126,17 @@ export async function plan(p, { cfg, log, signal }) {
 
   const ctx = { sceneSeconds: settings.sceneSeconds, format, refMode: settings.refMode, refDescription: s.reference?.description || '' };
   const raw = [];
+  let media = [];
+  const mediaLog = (n) => {
+    media = assignMedia(n, settings.mediaMode, settings.videoPercent);
+    const v = media.filter((m) => m === 'video').length;
+    if (settings.mediaMode !== 'video') log(`Mídia: ${v} cena(s) em vídeo e ${n - v} em imagem estática.`);
+  };
 
   if (generationMode === 'imagem') {
     const n = Math.min(cfg.maxScenes, Math.ceil((settings.durationSeconds || 60) / settings.sceneSeconds));
+    mediaLog(n);
+    ctx.imageScenes = media.map((m, k) => (m === 'image' ? k + 1 : null)).filter(Boolean);
     log(`Criando roteiro visual de ${n} cenas a partir da imagem…`);
     for (let from = 1; from <= n; from += BATCH) {
       const count = Math.min(BATCH, n - from + 1);
@@ -93,6 +151,7 @@ export async function plan(p, { cfg, log, signal }) {
     });
     const n = Math.min(cfg.maxScenes, Math.max(chunks.length, target || 0));
     log(`Roteiro: ${words} palavras → ${n} cenas de ${settings.sceneSeconds}s.`);
+    mediaLog(n);
     // duração maior que o texto → um trecho de narração cobre várias cenas (partes)
     const items = Array.from({ length: n }, (_, k) => ({ i: k + 1, narration: chunks[Math.floor((k * chunks.length) / n)], chunk: Math.floor((k * chunks.length) / n) }));
     items.forEach((it) => {
@@ -104,7 +163,7 @@ export async function plan(p, { cfg, log, signal }) {
     ({ bible: s.bible } = await ai({ action: 'bible', script, refDescription: ctx.refDescription, refMode: settings.refMode }, signal, log));
     ctx.bible = s.bible;
     for (let b = 0; b < items.length; b += BATCH) {
-      const batch = items.slice(b, b + BATCH).map(({ i, narration, part, parts }) => ({ i, narration, part, parts }));
+      const batch = items.slice(b, b + BATCH).map(({ i, narration, part, parts }) => ({ i, narration, part, parts, media: media[i - 1] }));
       const { scenes } = await ai({ action: 'scene-prompts', scenes: batch, ctx, previous: raw.slice(-2) }, signal, log);
       const byI = new Map(scenes.map((x) => [x.i, x.prompt]));
       batch.forEach((it) => raw.push({ i: it.i, narration: it.narration, prompt: byI.get(it.i) || `Cinematic shot illustrating: ${it.narration}` }));
@@ -117,7 +176,8 @@ export async function plan(p, { cfg, log, signal }) {
     narration: r.narration,
     prompt: r.prompt,
     finalPrompt: '',
-    file: fileName(idx + 1, raw.length),
+    media: media[idx] || 'video',
+    file: fileName(idx + 1, raw.length, media[idx]),
     status: 'pending',
   }));
   s.scenes.forEach((sc) => (sc.finalPrompt = composePrompt(sc.prompt, s)));

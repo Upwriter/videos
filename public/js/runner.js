@@ -1,9 +1,15 @@
 // Executor no navegador: gera cada cena (via /api/fal), baixa o MP4 direto do CDN do fal.ai
 // e grava na pasta escolhida. Estado salvo após cada passo → retomada exata.
 import { api, withRetry, sleep, ApiError } from './api.js';
-import { persist, recover } from './project.js';
+import { persist, recover, imageUsesReference } from './project.js';
 import { writeFile, readFile, downloadBlob, ensurePermission } from './storage.js';
-import { lastFrame } from './media.js';
+import { lastFrame, normalizeImage } from './media.js';
+
+/** Imagem (Blob) → JPEG no formato do vídeo, para servir de 1º quadro da cena seguinte. */
+async function frameFromImage(blob, format) {
+  const url = URL.createObjectURL(blob);
+  try { return await normalizeImage(url, format); } finally { URL.revokeObjectURL(url); }
+}
 
 const POLL_MS = 5000;
 const SCENE_TIMEOUT_MS = 20 * 60 * 1000;
@@ -97,6 +103,13 @@ export class Runner {
 
   async buildInput(sc) {
     const s = this.state;
+    if (sc.media === 'image') {
+      // imagem estática: com referência de personagem/produto/cenário → FLUX Kontext; senão FLUX 2 Flex
+      if (imageUsesReference(s) && s.reference?.dataUrl) {
+        return { kind: 'i2i', input: { prompt: sc.finalPrompt, image_url: s.reference.dataUrl, aspect_ratio: s.settings.format }, source: 'imagem de referência' };
+      }
+      return { kind: 't2i', input: { prompt: sc.finalPrompt, aspect_ratio: s.settings.format }, source: 'texto' };
+    }
     const input = { prompt: sc.finalPrompt, duration: s.settings.sceneSeconds };
     let image = null;
     let source = 'texto';
@@ -106,9 +119,9 @@ export class Runner {
         if (s.lastFrame?.i === prev.i) image = s.lastFrame.dataUrl;
         else if (this.dir) {
           const f = await readFile(this.dir, prev.file);
-          if (f) image = await lastFrame(f).catch(() => null);
+          if (f) image = await (prev.media === 'image' ? frameFromImage(f, s.settings.format) : lastFrame(f)).catch(() => null);
         }
-        if (image) source = `último quadro da cena ${prev.i}`;
+        if (image) source = prev.media === 'image' ? `imagem da cena ${prev.i}` : `último quadro da cena ${prev.i}`;
       }
     }
     const useRefFirst = s.settings.refMode !== 'geral' || s.settings.generationMode === 'imagem';
@@ -130,10 +143,10 @@ export class Runner {
       const label = st.status === 'IN_QUEUE' ? `na fila${st.queuePosition != null ? ` (posição ${st.queuePosition})` : ''}` : st.status === 'IN_PROGRESS' ? 'gerando' : st.status;
       if (label !== last) { last = label; sc.falStatus = label; this.onChange(this.state); }
       if (st.status === 'COMPLETED') break;
-      await sleep(POLL_MS, signal);
+      await sleep(sc.media === 'image' ? 2500 : POLL_MS, signal);
     }
-    const { videoUrl } = await api('/api/fal', { action: 'result', responseUrl: sc.responseUrl }, { signal });
-    return videoUrl;
+    const r = await api('/api/fal', { action: 'result', responseUrl: sc.responseUrl }, { signal });
+    return r.url || r.videoUrl;
   }
 
   async runScene(sc) {
@@ -177,10 +190,17 @@ export class Runner {
           sc.videoUrl = null; // URL pode ter expirado → busca o resultado de novo
           throw new Error(`Falha no download: ${e.message}`);
         }
+        if (sc.media === 'image') {
+          const ext = blob.type === 'image/png' ? 'png' : blob.type === 'image/webp' ? 'webp' : 'jpg';
+          sc.file = sc.file.replace(/\.\w+$/, `.${ext}`);
+        }
         if (this.dir) await writeFile(this.dir, sc.file, blob);
         else downloadBlob(blob, sc.file);
         if (s.settings.continuity) {
-          try { s.lastFrame = { i: sc.i, dataUrl: await lastFrame(blob) }; } catch (e) {
+          try {
+            const dataUrl = sc.media === 'image' ? await frameFromImage(blob, s.settings.format) : await lastFrame(blob);
+            s.lastFrame = { i: sc.i, dataUrl };
+          } catch (e) {
             this.log(`Aviso: não foi possível extrair o último quadro da cena ${sc.i} (${e.message}).`);
           }
         }

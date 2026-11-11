@@ -40,7 +40,8 @@ const SCENE_RULES = (sec) => `Rules for every prompt:
 - Visualize what the narration talks about (literal or metaphorical), so scenes follow the story in order.
 - Keep recurring characters/locations exactly as in the continuity bible.
 - NO on-screen text, subtitles, captions, logos or speech bubbles. NO art-style words (style is added later).
-- Each prompt must be different from the previous one (vary action, angle or framing).`;
+- Each prompt must be different from the previous one (vary action, angle or framing).
+- Scenes with media "image" become a STILL image: describe one frozen frame (composition, pose, setting, lighting) with no camera movement or action over time.`;
 
 async function describeReference(imageDataUrl, refMode) {
   const out = await chatJSON([
@@ -83,13 +84,19 @@ async function scenePrompts(scenes, ctx, previous = []) {
         `Aspect ratio: ${ctx.format}.`,
         prev ? `Previous shots (for continuity):\n${prev}` : '',
         'Scenes (parts > 1 mean the same narration is covered by several consecutive shots — make each part a new beat):',
-        JSON.stringify(scenes.map(({ i, narration, part, parts }) => ({ i, narration, ...(parts > 1 ? { part: `${part}/${parts}` } : {}) }))),
+        JSON.stringify(scenes.map(({ i, narration, part, parts, media }) => ({ i, narration, media: media === 'image' ? 'image' : 'video', ...(parts > 1 ? { part: `${part}/${parts}` } : {}) }))),
       ].filter(Boolean).join('\n\n'),
     },
   ]);
   const byI = new Map((res.scenes || []).map((s) => [Number(s.i), String(s.prompt || '').trim()]));
   // rede de segurança: nunca devolve cena sem prompt
   return scenes.map((s) => ({ i: s.i, prompt: byI.get(s.i) || `Cinematic shot illustrating: ${String(s.narration).slice(0, 300)}` }));
+}
+
+function stillsNote(ctx, from, count) {
+  if (!Array.isArray(ctx.imageScenes) || !ctx.imageScenes.length) return '';
+  const here = ctx.imageScenes.filter((x) => x >= from && x < from + count);
+  return here.length ? `\nThese scene numbers are STILL images (media "image"): ${here.join(', ')}.` : '';
 }
 
 /** Modo "apenas imagem": cenas from..from+count-1 de um total n. */
@@ -103,7 +110,7 @@ async function imageScenes(imageDataUrl, { n, from, count }, ctx, previous = [])
     {
       role: 'user',
       content: [
-        { type: 'text', text: `Total scenes in video: ${n}. Write scenes i=${from}..${from + count - 1}. Aspect ratio ${ctx.format}.${prev ? `\nPrevious shots:\n${prev}` : ''}` },
+        { type: 'text', text: `Total scenes in video: ${n}. Write scenes i=${from}..${from + count - 1}. Aspect ratio ${ctx.format}.${stillsNote(ctx, from, count)}${prev ? `\nPrevious shots:\n${prev}` : ''}` },
         { type: 'image_url', image_url: { url: imageDataUrl } },
       ],
     },

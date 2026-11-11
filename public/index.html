@@ -145,6 +145,29 @@
             Manter continuidade entre todas as cenas
           </label>
         </div>
+        <div class="space-y-2">
+          <div class="text-sm">Tipo de mídia das cenas</div>
+          <div class="grid sm:grid-cols-3 gap-2">
+            <label class="flex gap-2 items-start p-3 rounded-xl border border-zinc-700 cursor-pointer has-[:checked]:border-violet-500 has-[:checked]:bg-violet-500/10">
+              <input type="radio" name="mediaMode" value="video" checked class="mt-1 accent-violet-500" />
+              <span><b class="text-sm">Tudo em vídeo</b><br><span id="mmVideo" class="text-xs text-zinc-400"></span></span>
+            </label>
+            <label class="flex gap-2 items-start p-3 rounded-xl border border-zinc-700 cursor-pointer has-[:checked]:border-violet-500 has-[:checked]:bg-violet-500/10">
+              <input type="radio" name="mediaMode" value="mixed" class="mt-1 accent-violet-500" />
+              <span><b class="text-sm">Misto: vídeo + imagens</b><br><span class="text-xs text-zinc-400">Parte das cenas em vídeo, o resto em imagem estática</span></span>
+            </label>
+            <label class="flex gap-2 items-start p-3 rounded-xl border border-zinc-700 cursor-pointer has-[:checked]:border-violet-500 has-[:checked]:bg-violet-500/10">
+              <input type="radio" name="mediaMode" value="image" class="mt-1 accent-violet-500" />
+              <span><b class="text-sm">Tudo em imagem estática</b><br><span id="mmImage" class="text-xs text-zinc-400"></span></span>
+            </label>
+          </div>
+          <div id="mixedBox" class="hidden flex items-center gap-3 flex-wrap rounded-xl bg-zinc-950 p-3">
+            <label for="videoPercent" class="text-sm">Vídeo:</label>
+            <input id="videoPercent" type="range" min="5" max="90" step="5" value="10" class="flex-1 min-w-[10rem] accent-violet-500" />
+            <span id="videoPercentLabel" class="text-sm font-medium w-44">10% vídeo · 90% imagem</span>
+          </div>
+          <p class="text-xs text-zinc-500">Imagens: FLUX 2 Flex (texto) ou FLUX Kontext quando há imagem de referência de personagem/produto/cenário. Na edição, cada imagem ocupa o tempo da cena (<span class="js-sec">10</span> s). Com continuidade, o vídeo que vem depois de uma imagem começa nela.</p>
+        </div>
         <textarea id="customStyle" rows="3" placeholder="Descreva o estilo (em inglês funciona melhor). Ex.: watercolor illustration, soft pastel palette…" class="hidden w-full bg-zinc-950 border border-zinc-700 rounded-lg px-3 py-2 text-sm"></textarea>
         <p class="text-xs text-zinc-500">Continuidade: cada cena começa no último quadro da cena anterior (image-to-video). A 1ª cena usa a imagem de referência quando houver.</p>
       </section>
@@ -165,7 +188,7 @@
       <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div class="rounded-xl bg-zinc-950 p-3"><div class="text-xs text-zinc-400">Cenas</div><div id="bScenes" class="text-xl font-semibold">–</div></div>
         <div class="rounded-xl bg-zinc-950 p-3"><div class="text-xs text-zinc-400">Duração total</div><div id="bDuration" class="text-xl font-semibold">–</div></div>
-        <div class="rounded-xl bg-zinc-950 p-3"><div class="text-xs text-zinc-400">Custo por cena</div><div id="bUnit" class="text-xl font-semibold">–</div></div>
+        <div class="rounded-xl bg-zinc-950 p-3"><div class="text-xs text-zinc-400">Composição</div><div id="bUnit" class="text-sm font-medium leading-snug">–</div></div>
         <div class="rounded-xl bg-violet-500/15 p-3"><div class="text-xs text-violet-300">Custo total estimado</div><div id="bTotal" class="text-xl font-semibold">–</div></div>
       </div>
       <p id="bNote" class="text-xs text-zinc-500"></p>

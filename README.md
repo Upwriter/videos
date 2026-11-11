@@ -51,6 +51,13 @@ prompts, mas para aí — nada é enviado ao fal.ai. Os prompts aparecem na tela
 podem ser baixados em TXT, CSV (abre no Excel) e JSON; se houver pasta escolhida, também são salvos nela.
 A pasta é opcional nesse modo. Depois, *Quero gerar os vídeos destes prompts* reaproveita o projeto.
 
+**Tipo de mídia:** *Tudo em vídeo*, *Misto* (porcentagem de vídeo ajustável, padrão 10% — o resto vira
+imagem estática, distribuído de forma uniforme e com a cena 1 sempre em vídeo) ou *Tudo em imagem*.
+Imagens usam FLUX 2 Flex (US$ 0,05) ou, com referência de personagem/produto/cenário, FLUX Kontext
+(US$ 0,04). No editor de cenas dá para trocar cada cena entre vídeo e imagem; o total é recalculado e a
+confirmação do orçamento é pedida de novo. Imagens são salvas como `NN_cena.jpg` (ocupam o tempo da cena
+na edição). Com continuidade, um vídeo que vem depois de uma imagem começa nela.
+
 **Continuidade:** cada cena (a partir da 2ª) começa no último quadro da anterior (extraído no navegador).
 A 1ª usa a imagem de referência (exceto no modo *Referência visual geral*). Nos modos Personagem/Produto/
 Cenário a descrição da referência também entra em todos os prompts.
@@ -69,5 +76,11 @@ dev-server.js                          servidor só para uso local
 ```
 
 ## Custos
-`COST_PER_SECOND` (padrão US$ 0,025/s = US$ 0,25 por cena de 10 s em 480P, tabela do fal.ai a partir de
-16/11/2026). Confira em https://fal.ai/models/minimax/h3-max-turbo/text-to-video.
+| Mídia | Modelo | Custo por cena |
+|---|---|---|
+| Vídeo 480P, 10 s, sem áudio | MiniMax H3 Max Turbo (o mais barato dos vídeos do fal.ai comparados) | US$ 0,25 (`COST_PER_SECOND`=0.025) |
+| Imagem sem referência | FLUX 2 Flex | US$ 0,05 (`IMAGE_T2I_COST`) |
+| Imagem com referência | FLUX Kontext Pro | US$ 0,04 (`IMAGE_I2I_COST`) |
+
+Exemplo, 60 cenas: tudo em vídeo ≈ US$ 15,00 · misto 10% ≈ US$ 4,20 · tudo em imagem ≈ US$ 3,00.
+Preços do fal.ai em 11/11/2026 (o vídeo tem promoção até 15/11). Confira nas páginas dos modelos.

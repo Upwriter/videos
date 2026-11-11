@@ -3,7 +3,7 @@ import { STYLES, composePrompt } from './styles.js';
 import { countWords } from './splitter.js';
 import { fsSupported, pickDirectory, getSavedDirectory, ensurePermission, readFile, writeFile, downloadBlob } from './storage.js';
 import { toTxt, toCsv, toJson, toPlain, promptRows } from './exports.js';
-import { plan, persist, saveReferenceFile, loadSaved, recover, importFromFolder, budget, STATE_FILE } from './project.js';
+import { plan, persist, saveReferenceFile, loadSaved, recover, importFromFolder, budget, setSceneMedia, imageUsesReference, STATE_FILE } from './project.js';
 import { Runner } from './runner.js';
 
 const $ = (id) => document.getElementById(id);
@@ -87,7 +87,7 @@ async function init() {
     }
   }
   updateMode();
-  updateStats();
+  updateMediaUi();
 }
 
 function showFolder() {
@@ -124,13 +124,41 @@ function durationSeconds() {
   return Number(v);
 }
 
+// ---------- tipo de mídia ----------
+const mediaMode = () => document.querySelector('input[name=mediaMode]:checked').value;
+const videoPercent = () => Number($('videoPercent').value);
+const videoSceneCost = () => (cfg.sceneSeconds || 10) * (cfg.costPerSecond || 0);
+// estimativa antes do planejamento: com referência de personagem/produto/cenário usa o preço do Kontext
+const imageSceneCost = () => (imageDataUrl && ['personagem', 'produto', 'cenario'].includes($('refMode').value) ? cfg.imageI2ICost : cfg.imageT2ICost) ?? 0.05;
+
+function updateMediaUi() {
+  const pct = videoPercent();
+  $('mixedBox').classList.toggle('hidden', mediaMode() !== 'mixed');
+  $('videoPercentLabel').textContent = `${pct}% vídeo · ${100 - pct}% imagem`;
+  $('mmVideo').textContent = `MiniMax H3 Max Turbo ${cfg.resolution || '480P'} · ${usd(videoSceneCost())}/cena`;
+  $('mmImage').textContent = `Sem vídeo · ${usd(imageSceneCost())}/cena`;
+  document.querySelectorAll('.js-sec').forEach((el) => (el.textContent = cfg.sceneSeconds || 10));
+  updateStats();
+}
+document.querySelectorAll('input[name=mediaMode]').forEach((r) => r.addEventListener('change', updateMediaUi));
+$('videoPercent').addEventListener('input', updateMediaUi);
+$('refMode').addEventListener('change', updateMediaUi);
+
+function estimate(scenes) {
+  const m = mediaMode();
+  const v = m === 'video' ? scenes : m === 'image' ? 0 : Math.min(scenes, Math.max(1, Math.round((scenes * videoPercent()) / 100)));
+  return { v, i: scenes - v, total: v * videoSceneCost() + (scenes - v) * imageSceneCost() };
+}
+
 function updateStats() {
   const sec = cfg.sceneSeconds || 10;
   const words = countWords($('script').value);
   const speech = (words / (cfg.wordsPerMinute || 140)) * 60;
   const fixed = durationSeconds();
   const scenes = fixed ? Math.ceil(fixed / sec) : words ? Math.max(1, Math.round(speech / sec)) : 0;
-  $('scriptStats').textContent = `${words} palavras · ~${fmtDur(speech)} de fala · ~${scenes} cenas · ~${usd(scenes * sec * (cfg.costPerSecond || 0))} (estimativa rápida)`;
+  const e = estimate(scenes);
+  const mix = mediaMode() === 'video' ? '' : ` (${e.v} vídeo · ${e.i} imagem)`;
+  $('scriptStats').textContent = `${words} palavras · ~${fmtDur(speech)} de fala · ~${scenes} cenas${mix} · ~${usd(e.total)} (estimativa rápida)`;
 }
 let statsT;
 $('script').addEventListener('input', () => { clearTimeout(statsT); statsT = setTimeout(updateStats, 200); });
@@ -218,6 +246,8 @@ $('form').addEventListener('submit', async (e) => {
       continuity: $('continuity').checked,
       folderName: dir?.name,
       promptsOnly,
+      mediaMode: mediaMode(),
+      videoPercent: videoPercent(),
     }, { cfg, log, signal: planAbort.signal });
     state = s;
     await persist(state, dir);
@@ -236,26 +266,57 @@ $('form').addEventListener('submit', async (e) => {
 });
 
 // ---------- orçamento ----------
-function renderBudget(s) {
+function renderBudgetNumbers(s) {
   const b = budget(s);
   $('bScenes').textContent = b.scenes;
   $('bDuration').textContent = fmtDur(b.seconds);
-  $('bUnit').textContent = usd(b.costPerScene);
+  $('bUnit').innerHTML = [
+    b.videos ? `${b.videos} vídeo${b.videos > 1 ? 's' : ''} × ${usd(b.videoCost)}` : '',
+    b.images ? `${b.images} image${b.images > 1 ? 'ns' : 'm'} × ${usd(b.imageCost)}` : '',
+  ].filter(Boolean).join('<br>');
   $('bTotal').textContent = usd(b.total);
   $('bConfirmTotal').textContent = usd(b.total);
+}
+
+function renderBudget(s) {
+  renderBudgetNumbers(s);
+  const busy = runner.running;
   $('sceneEditor').innerHTML = s.scenes.map((sc) => `
     <div class="p-3 space-y-1">
-      <div class="text-xs text-zinc-400"><b class="text-zinc-200">${esc(sc.file)}</b> · ${esc(sc.narration)}</div>
+      <div class="flex items-center justify-between gap-2">
+        <div class="text-xs text-zinc-400 min-w-0"><b class="text-zinc-200">${esc(sc.file)}</b> · ${esc(sc.narration)}</div>
+        <select data-media="${sc.i}" ${sc.status === 'done' || busy ? 'disabled' : ''} class="shrink-0 bg-zinc-950 border border-zinc-700 rounded px-1 py-0.5 text-xs">
+          <option value="video" ${sc.media !== 'image' ? 'selected' : ''}>🎬 vídeo</option>
+          <option value="image" ${sc.media === 'image' ? 'selected' : ''}>🖼 imagem</option>
+        </select>
+      </div>
       <textarea data-i="${sc.i}" rows="2" ${sc.status === 'done' ? 'disabled' : ''} class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-2 py-1 text-xs">${esc(sc.prompt)}</textarea>
     </div>`).join('');
 }
 
-$('saveScenes').addEventListener('click', async () => {
-  if (!state || runner.running) return alert('Não é possível editar durante a geração.');
+/** Aplica no estado o que foi digitado nos prompts (sem salvar). */
+function applyEditorPrompts() {
   for (const t of $('sceneEditor').querySelectorAll('textarea:not([disabled])')) {
     const sc = state.scenes[Number(t.dataset.i) - 1];
     if (sc && t.value.trim()) { sc.prompt = t.value.trim(); sc.finalPrompt = composePrompt(sc.prompt, state); }
   }
+}
+
+$('sceneEditor').addEventListener('change', async (e) => {
+  const i = e.target.dataset?.media;
+  if (!i || !state || runner.running) return;
+  applyEditorPrompts();
+  setSceneMedia(state, state.scenes[Number(i) - 1], e.target.value);
+  if (state.confirmedBudget) { state.confirmedBudget = false; log('Orçamento mudou — confirme de novo antes de gerar.'); }
+  await persist(state, dir);
+  renderBudget(state);
+  render(state);
+  if (state.settings.promptsOnly) { renderPrompts(state); await savePromptFiles(); }
+});
+
+$('saveScenes').addEventListener('click', async () => {
+  if (!state || runner.running) return alert('Não é possível editar durante a geração.');
+  applyEditorPrompts();
   await persist(state, dir);
   if (state.settings.promptsOnly) await savePromptFiles();
   renderPrompts(state);
@@ -299,7 +360,7 @@ function renderPrompts(s) {
   $('promptsList').innerHTML = rows.map((r) => `
     <div class="p-3 space-y-1">
       <div class="flex items-center justify-between gap-2">
-        <span class="text-xs text-zinc-400"><b class="text-zinc-200">Cena ${String(r.cena).padStart(2, '0')}</b> · ${r.inicio}–${r.fim}</span>
+        <span class="text-xs text-zinc-400"><b class="text-zinc-200">Cena ${String(r.cena).padStart(2, '0')}</b> · ${r.inicio}–${r.fim} · ${r.midia === 'imagem' ? '🖼 imagem' : '🎬 vídeo'}</span>
         <button data-copy="${r.cena}" class="px-2 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700 text-xs">Copiar</button>
       </div>
       <div class="text-xs text-zinc-500">${esc(r.narracao)}</div>
@@ -390,8 +451,13 @@ function renderNow(s, rebuild = false) {
   const running = runner.running;
   const done = s.scenes.filter((x) => x.status === 'done').length;
   const total = s.scenes.length;
-  $('bNote').textContent = `${s.settings.resolution}, sem áudio, ${s.settings.sceneSeconds}s por cena a US$ ${Number(b.costPerSecond).toFixed(4).replace(/0+$/, '')}/s (${s.settings.format}).`
-    + (b.pendingScenes > 0 && b.pendingScenes < b.scenes ? ` Restante a gerar: ${b.pendingScenes} cenas ≈ ${usd(b.pendingCost)}.` : '');
+  renderBudgetNumbers(s);
+  const notes = [];
+  if (b.videos) notes.push(`Vídeo: MiniMax H3 Max Turbo ${s.settings.resolution}, sem áudio, ${s.settings.sceneSeconds}s por cena a US$ ${Number(b.costPerSecond).toFixed(4).replace(/0+$/, '')}/s.`);
+  if (b.images) notes.push(`Imagem: ${imageUsesReference(s) ? 'FLUX Kontext (mantém a referência)' : 'FLUX 2 Flex'}, ${usd(b.imageCost)} cada, exibida por ${s.settings.sceneSeconds}s na edição.`);
+  if (b.images) notes.push(`Se fosse tudo em vídeo: ${usd(b.allVideoTotal)} (economia de ${usd(b.allVideoTotal - b.total)}).`);
+  if (b.pendingScenes > 0 && b.pendingScenes < b.scenes) notes.push(`Restante a gerar: ${b.pendingScenes} cenas ≈ ${usd(b.pendingCost)}.`);
+  $('bNote').textContent = `${notes.join(' ')} Formato ${s.settings.format}.`;
   $('confirmBudget').checked = !!s.confirmedBudget;
   $('confirmBudget').disabled = running || done > 0;
   $('startBtn').disabled = !s.confirmedBudget;
@@ -401,7 +467,7 @@ function renderNow(s, rebuild = false) {
   $('progressText').textContent = `${done} / ${total} cenas concluídas`;
   const cur = s.currentIndex ? s.scenes[s.currentIndex - 1] : null;
   $('currentText').textContent = running && cur ? `Cena ${cur.i}: ${SCENE_STATUS[cur.status] || cur.status}${cur.falStatus ? ` (${cur.falStatus})` : ''}` : '';
-  $('spentText').textContent = `Gasto estimado: ${usd(done * b.costPerScene)} de ${usd(b.total)}`;
+  $('spentText').textContent = `Gasto estimado: ${usd(b.spent)} de ${usd(b.total)}`;
   $('statusBadge').textContent = runner.pauseReq && running ? 'pausando…' : STATUS[s.status] || s.status;
   $('keepOpen').classList.toggle('hidden', !running);
 

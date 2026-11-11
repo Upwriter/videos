@@ -11,6 +11,7 @@ export function promptRows(s, withStyle = true) {
     cena: sc.i,
     inicio: ts((sc.i - 1) * d),
     fim: ts(sc.i * d),
+    midia: sc.media === 'image' ? 'imagem' : 'vídeo',
     arquivo: sc.file,
     narracao: sc.narration || '',
     prompt: withStyle ? sc.finalPrompt : sc.prompt,
@@ -29,7 +30,7 @@ function header(s) {
 
 export function toTxt(s, withStyle) {
   const body = promptRows(s, withStyle)
-    .map((r) => `Cena ${String(r.cena).padStart(2, '0')} (${r.inicio}–${r.fim}) — ${r.arquivo}\nNarração: ${r.narracao}\nPrompt: ${r.prompt}`)
+    .map((r) => `Cena ${String(r.cena).padStart(2, '0')} (${r.inicio}–${r.fim}) — ${r.midia.toUpperCase()} — ${r.arquivo}\nNarração: ${r.narracao}\nPrompt: ${r.prompt}`)
     .join('\n\n');
   return `${header(s)}\n\n${'='.repeat(60)}\n\n${body}\n`;
 }

@@ -12,6 +12,8 @@ module.exports = handler(async (_body, req) => {
     hasTextKey: !!config.openaiKey,
     sceneSeconds: config.sceneSeconds,
     costPerSecond: config.costPerSecond,
+    imageT2ICost: config.imageT2ICost,
+    imageI2ICost: config.imageI2ICost,
     resolution: config.resolution,
     wordsPerMinute: config.wordsPerMinute,
     maxScenes: config.maxScenes,
