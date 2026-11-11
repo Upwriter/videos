@@ -9,11 +9,6 @@
     "dev": "node --watch dev-server.js"
   },
   "engines": {
-    "node": ">=18.17"
-  },
-  "dependencies": {},
-  "devDependencies": {
-    "dotenv": "^16.4.5",
-    "express": "^4.21.2"
+    "node": "22.x"
   }
 }

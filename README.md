@@ -18,7 +18,7 @@ Transforma roteiros longos (5 min a 1 h+) em dezenas/centenas de clipes de 10 s 
 
 ## Deploy na Vercel
 
-1. Importe o repositório `Upwriter/videos` na Vercel (Framework Preset: **Other**; sem build command).
+1. Importe o repositório `Upwriter/videos` na Vercel (Framework Preset: **Other** — o `vercel.json` já força isso).
 2. Em *Settings → Environment Variables*, cadastre no mínimo `APP_PASSWORD`, `FAL_KEY` e `OPENAI_API_KEY`
    (veja `.env.example` para as opcionais).
 3. Faça o deploy e acesse a URL. A senha é pedida uma vez por navegador.
