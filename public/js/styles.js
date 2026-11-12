@@ -9,6 +9,11 @@ export const STYLES = {
     modifier:
       '3D isometric architectural cross-section render, clean minimal matte gray and white environment, smooth clay-like smooth figures with distinct color coding, studio soft lighting, clean geometry, minimalist technical illustration style, high-end 3D animation look.',
   },
+  caricatura: {
+    label: 'Caricatura Cartoon (estilo thumbnail)',
+    modifier:
+      'Bold 2D cartoon caricature illustration, exaggerated expressive characters with oversized heads and strong facial expressions, thick clean black outlines, flat vibrant saturated colors with simple cel shading, bright clean sky-blue background, playful vector comic art style, high contrast, editorial cartoon look, YouTube thumbnail illustration aesthetic, {ASPECT}.',
+  },
   realista: { label: 'Realista', modifier: 'Photorealistic footage, natural lighting, realistic textures and skin, true-to-life colors, sharp focus.' },
   cinematografico: {
     label: 'Cinematográfico',
