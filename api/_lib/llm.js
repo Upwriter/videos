@@ -2,22 +2,45 @@
 const config = require('./config');
 const { httpError } = require('./http');
 
+// Modelos de raciocínio (gpt-5*, o*) pensam antes de responder e podem passar do limite da função.
+// Para escrever prompts de cena, raciocínio mínimo basta e é bem mais rápido.
+function reasoningEffort() {
+  if (config.reasoningEffort) return config.reasoningEffort === 'off' ? null : config.reasoningEffort;
+  const m = config.openaiModel;
+  if (/^gpt-5(-mini|-nano)?(-\d{4}-\d{2}-\d{2})?$/.test(m)) return 'minimal';
+  if (/^(gpt-5|o\d)/.test(m)) return 'low';
+  return null;
+}
+
+let effortUnsupported = false; // se a API recusar o parâmetro, não manda mais nesta instância
+
 async function chatJSON(messages) {
   if (!config.openaiKey) throw httpError(500, 'OPENAI_API_KEY não configurada.');
+  const effort = effortUnsupported ? null : reasoningEffort();
+  const payload = { model: config.openaiModel, messages, response_format: { type: 'json_object' } };
+  if (effort) payload.reasoning_effort = effort;
   let res;
   try {
     res = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: { Authorization: `Bearer ${config.openaiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: config.openaiModel, messages, response_format: { type: 'json_object' } }),
+      body: JSON.stringify(payload),
+      // devolve erro "temporário" antes de a Vercel matar a função (504), para o navegador dividir o lote
+      signal: AbortSignal.timeout(config.openaiTimeoutMs),
     });
   } catch (e) {
+    if (e.name === 'TimeoutError' || e.name === 'AbortError') throw httpError(503, 'A IA demorou demais para responder (lote grande).');
     throw httpError(502, `Falha de rede com a OpenAI: ${e.message}`);
   }
   const body = await res.json().catch(() => ({}));
   if (!res.ok) {
+    const msg = body?.error?.message || 'erro';
+    if (res.status === 400 && effort && /reasoning/i.test(msg)) {
+      effortUnsupported = true;
+      return chatJSON(messages);
+    }
     const retryable = res.status >= 500 || res.status === 429;
-    throw httpError(retryable ? 502 : 422, `OpenAI HTTP ${res.status}: ${body?.error?.message || 'erro'}`);
+    throw httpError(retryable ? 502 : 422, `OpenAI HTTP ${res.status}: ${msg}`);
   }
   try {
     return JSON.parse(body.choices?.[0]?.message?.content || '{}');

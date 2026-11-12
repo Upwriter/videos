@@ -17,5 +17,9 @@ module.exports = {
   maxScenes: num(process.env.MAX_SCENES, 400),
   openaiKey: process.env.OPENAI_API_KEY || '',
   openaiModel: process.env.OPENAI_MODEL || 'gpt-5-mini',
+  // minimal | low | medium | high | off  (vazio = automático: minimal no gpt-5/mini/nano)
+  reasoningEffort: process.env.OPENAI_REASONING_EFFORT || '',
+  // abaixo dos 60 s da função na Vercel
+  openaiTimeoutMs: num(process.env.OPENAI_TIMEOUT_MS, 50000),
   appPassword: process.env.APP_PASSWORD || '',
 };

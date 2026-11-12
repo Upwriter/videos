@@ -5,7 +5,7 @@ import { composePrompt } from './styles.js';
 import { normalizeImage, shrinkImage } from './media.js';
 import { idbGet, idbSet, idbDel, writeFile, readFile, hasPermission, dataUrlToBlob, blobToDataUrl } from './storage.js';
 
-const BATCH = 8;
+const BATCH = 5; // cenas por chamada à IA (cada chamada precisa caber nos 60 s da função da Vercel)
 export const STATE_FILE = 'project_state.json';
 const REF_FILE = '_referencia/referencia.jpg';
 
@@ -71,10 +71,28 @@ export function setSceneMedia(s, sc, media) {
   if (sc.status === 'error') sc.status = 'pending';
 }
 
-const ai = (body, signal, log) => withRetry(() => api('/api/ai', body, { signal }), {
+const ai = (body, signal, log, retries = 3) => withRetry(() => api('/api/ai', body, { signal }), {
   signal,
+  retries,
   onRetry: (e, n, d) => log?.(`IA: ${e.message}. Tentando de novo em ${Math.round(d / 1000)}s…`),
 });
+
+/**
+ * Pede os prompts de um lote; se a IA estourar o tempo da função (504/503) ou falhar,
+ * divide o lote ao meio e tenta as metades — até 1 cena por chamada.
+ */
+async function promptsSplit(items, call, previous, { signal, log }) {
+  try {
+    return await call(items, previous, items.length > 1 ? 1 : 4);
+  } catch (e) {
+    if (signal?.aborted || items.length <= 1 || !(e.retryable ?? true)) throw e;
+    log(`IA lenta (${e.message}) — dividindo o lote de ${items.length} cenas…`);
+    const h = Math.ceil(items.length / 2);
+    const a = await promptsSplit(items.slice(0, h), call, previous, { signal, log });
+    const b = await promptsSplit(items.slice(h), call, [...previous, ...a].slice(-2), { signal, log });
+    return [...a, ...b];
+  }
+}
 
 export async function plan(p, { cfg, log, signal }) {
   const generationMode = p.generationMode === 'imagem' ? 'imagem' : 'roteiro';
@@ -138,10 +156,12 @@ export async function plan(p, { cfg, log, signal }) {
     mediaLog(n);
     ctx.imageScenes = media.map((m, k) => (m === 'image' ? k + 1 : null)).filter(Boolean);
     log(`Criando roteiro visual de ${n} cenas a partir da imagem…`);
+    const call = async (idx, previous, retries) => (await ai({
+      action: 'image-scenes', imageDataUrl: smallRef, n, from: idx[0], count: idx.length, ctx, previous,
+    }, signal, log, retries)).scenes;
     for (let from = 1; from <= n; from += BATCH) {
-      const count = Math.min(BATCH, n - from + 1);
-      const { scenes } = await ai({ action: 'image-scenes', imageDataUrl: smallRef, n, from, count, ctx, previous: raw.slice(-2) }, signal, log);
-      raw.push(...scenes);
+      const idx = Array.from({ length: Math.min(BATCH, n - from + 1) }, (_, k) => from + k);
+      raw.push(...(await promptsSplit(idx, call, raw.slice(-2), { signal, log })));
       log(`Prompts das cenas: ${raw.length}/${n}`);
     }
   } else {
@@ -160,11 +180,18 @@ export async function plan(p, { cfg, log, signal }) {
       it.part = same.indexOf(it) + 1;
     });
     log('Criando bíblia visual (continuidade de personagens e cenários)…');
-    ({ bible: s.bible } = await ai({ action: 'bible', script, refDescription: ctx.refDescription, refMode: settings.refMode }, signal, log));
+    try {
+      ({ bible: s.bible } = await ai({ action: 'bible', script, refDescription: ctx.refDescription, refMode: settings.refMode }, signal, log));
+    } catch (e) {
+      if (signal?.aborted) throw e;
+      s.bible = ''; // a bíblia ajuda na continuidade, mas não pode travar o projeto
+      log(`Aviso: bíblia visual não gerada (${e.message}). Seguindo sem ela.`);
+    }
     ctx.bible = s.bible;
+    const call = async (batch, previous, retries) => (await ai({ action: 'scene-prompts', scenes: batch, ctx, previous }, signal, log, retries)).scenes;
     for (let b = 0; b < items.length; b += BATCH) {
       const batch = items.slice(b, b + BATCH).map(({ i, narration, part, parts }) => ({ i, narration, part, parts, media: media[i - 1] }));
-      const { scenes } = await ai({ action: 'scene-prompts', scenes: batch, ctx, previous: raw.slice(-2) }, signal, log);
+      const scenes = await promptsSplit(batch, call, raw.slice(-2), { signal, log });
       const byI = new Map(scenes.map((x) => [x.i, x.prompt]));
       batch.forEach((it) => raw.push({ i: it.i, narration: it.narration, prompt: byI.get(it.i) || `Cinematic shot illustrating: ${it.narration}` }));
       log(`Prompts das cenas: ${raw.length}/${n}`);
